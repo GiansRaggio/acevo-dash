@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+*.log
+telemetry/
+references/
+player.txt

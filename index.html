@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#04060a">
+<title>AC EVO Dash</title>
+<style>
+  :root{
+    --bg:#04060a; --panel:#0d1118; --panel2:#11161f; --line:#1f2733;
+    --txt:#eef3fa; --dim:#5d6b7e;
+    --green:#2bf07a; --amber:#ffb020; --red:#ff2e4d;
+    --blue:#3f8cff; --cyan:#27e0ff; --purple:#b44dff;
+    --mono:ui-monospace,"JetBrains Mono","Cascadia Mono","Roboto Mono",monospace;
+    --chamfer:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100vh;height:100dvh;overflow:hidden;touch-action:manipulation}
+  body{
+    background:
+      radial-gradient(120% 90% at 50% -20%, #0b1220 0%, var(--bg) 55%),
+      var(--bg);
+    color:var(--txt);font-family:var(--mono);
+    display:flex;flex-direction:column;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  /* textura sutil tipo carbono */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.05;
+    background:repeating-linear-gradient(45deg,#fff 0 1px,transparent 1px 6px),
+               repeating-linear-gradient(-45deg,#fff 0 1px,transparent 1px 6px)}
+
+  .label{font-size:clamp(8px,1.5vh,12px);letter-spacing:.22em;color:var(--dim);
+         text-transform:uppercase;font-weight:600}
+  .box{background:linear-gradient(180deg,var(--panel2),var(--panel));
+       border:1px solid var(--line);clip-path:var(--chamfer);
+       padding:.6vh 1.2vw;display:flex;flex-direction:column;justify-content:center;
+       min-height:0;position:relative}
+  .box::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--edge,transparent)}
+  .val{font-variant-numeric:tabular-nums;line-height:1.02;font-weight:800}
+
+  /* ================= LED SHIFT STRIP ================= */
+  #ledwrap{flex:none;padding:1vh 1vh 0;display:flex;flex-direction:column;gap:.6vh}
+  #leds{display:flex;gap:.5vw;height:4.2vh}
+  #leds i{flex:1;border-radius:3px;background:#161c26;border:1px solid #202938;
+          transition:background .05s,box-shadow .05s}
+  #leds i.on.g{background:var(--green);box-shadow:0 0 12px var(--green)}
+  #leds i.on.a{background:var(--amber);box-shadow:0 0 12px var(--amber)}
+  #leds i.on.r{background:var(--red);box-shadow:0 0 14px var(--red)}
+  body.shift #leds i{background:var(--blue)!important;box-shadow:0 0 16px var(--blue)!important;
+                     animation:strobe .1s steps(2) infinite}
+  @keyframes strobe{to{opacity:.25}}
+  #rpmrow{display:flex;justify-content:space-between;align-items:baseline;padding:0 .3vw}
+  #rpmnum{font-size:2.4vh;font-weight:800;color:var(--txt)}
+  #rpmnum small{color:var(--dim);font-size:1.5vh;letter-spacing:.15em}
+
+  /* ================= GRID ================= */
+  #grid{flex:1;display:grid;min-height:0;
+        grid-template-columns:1fr 1.2fr 1.3fr;gap:1vh;padding:1vh}
+  .col{display:flex;flex-direction:column;gap:1vh;min-height:0}
+  .col .box{flex:1}
+
+  .split{font-size:clamp(18px,5.4vh,56px);display:flex;align-items:center;gap:.5vw}
+  .split b{font-size:.55em;font-weight:800}
+  #ahead{--edge:var(--red)}   #ahead .split{color:var(--red)}
+  #behind{--edge:var(--green)} #behind .split{color:var(--green)}
+
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:1vh;flex:1;min-height:0}
+  .duo .box{height:100%}
+  .small{font-size:clamp(16px,4.4vh,44px)}
+  #pos .val b{color:var(--cyan)}
+
+  /* ---- centro: marcha ---- */
+  #center{align-items:center;justify-content:space-between;text-align:center;
+          display:flex;flex-direction:column;overflow:hidden}
+  #assists{display:flex;gap:1vw;padding-top:.5vh}
+  .assist{font-size:2vh;font-weight:800;letter-spacing:.16em;padding:.4vh 1.3vw;
+          border-radius:5px;border:1px solid var(--line);color:var(--dim);
+          background:#0d1118;transition:color .1s,background .1s,box-shadow .1s}
+  .assist.on{color:#04060a}
+  #aTc.on{background:var(--amber);border-color:var(--amber);box-shadow:0 0 16px var(--amber)}
+  #aAbs.on{background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 16px var(--cyan)}
+  #gear{font-size:clamp(60px,31vh,300px);font-weight:800;line-height:.88;flex:1;
+        display:flex;align-items:center;color:#fff;
+        text-shadow:0 0 28px rgba(39,224,255,.35),0 0 90px rgba(39,224,255,.18)}
+  #gear.rev{color:var(--amber);text-shadow:0 0 28px rgba(255,176,32,.45)}
+  #gear.neu{color:var(--cyan)}
+  #gear.hi{color:var(--red);text-shadow:0 0 30px rgba(255,46,77,.6)}
+  #speedbox{width:100%;border-top:1px solid var(--line);padding-top:.6vh}
+  #speed{font-size:clamp(28px,9.5vh,96px)}
+  .pedal{position:absolute;bottom:0;width:1.4vw;min-width:7px;transform-origin:bottom;
+         transform:scaleY(0);border-radius:2px 2px 0 0}
+  #pthr{right:3px;background:linear-gradient(180deg,var(--green),#0a5)}
+  #pbrk{left:3px;background:linear-gradient(180deg,var(--red),#900)}
+
+  /* ---- derecha: tiempos ---- */
+  .lap{font-size:clamp(16px,4.8vh,48px)}
+  #cur{--edge:var(--green)}  #cur .lap{color:var(--green)}
+  #best{--edge:var(--purple)} #best .lap{color:var(--blue)}
+  #timeleft .lap{color:var(--amber);font-size:clamp(14px,3.6vh,36px)}
+  @keyframes purpleflash{0%,100%{background:linear-gradient(180deg,var(--panel2),var(--panel))}
+                         50%{background:var(--purple)}}
+  #best.record{animation:purpleflash .35s ease 3}
+
+  /* ================= FUEL ================= */
+  #bottom{flex:none;height:12.5vh;display:flex;gap:1vh;padding:0 1vh 1vh}
+  #fuelbox{flex:1;overflow:hidden;--edge:var(--amber)}
+  #fuelmain{display:flex;align-items:center;gap:1.4vw;margin-top:.5vh}
+  #fuelval{font-size:3.8vh;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+  #fuelpct{font-size:2.2vh;color:var(--dim);font-variant-numeric:tabular-nums}
+  #fuelbar{flex:1;height:5vh;background:#10151d;border:1px solid var(--line);
+           border-radius:5px;overflow:hidden;position:relative}
+  #fuelfill{position:absolute;left:0;top:0;bottom:0;width:100%;transform-origin:left;
+            transform:scaleX(0);background:var(--green);
+            transition:transform .4s,background .4s}
+  #fuellaps{display:flex;flex-direction:column;align-items:flex-end;line-height:1;
+            white-space:nowrap}
+  #fuellaps b{font-size:3.6vh;font-weight:800;color:var(--amber);font-variant-numeric:tabular-nums}
+  #fuellaps span{font-size:1.5vh;color:var(--dim);letter-spacing:.05em;margin-top:.5vh}
+  body.lowfuel #fuelbox{animation:fuelwarn 1s ease infinite}
+  @keyframes fuelwarn{50%{border-color:var(--red);box-shadow:inset 0 0 24px rgba(255,46,77,.35)}}
+
+  /* ================= BADGES + PIT LIMITER ================= */
+  #badges{display:flex;gap:.5vw;align-items:center}
+  .badge{font-size:1.5vh;font-weight:800;letter-spacing:.1em;padding:.2vh .7vw;
+         border-radius:3px;display:none}
+  .badge.show{display:inline-block}
+  #bAbs{color:#04060a;background:var(--amber)}
+  #bWarn{color:#fff;background:var(--red);animation:strobe .4s steps(2) infinite}
+  #pitlimit{position:fixed;top:7vh;left:50%;transform:translateX(-50%);z-index:40;
+            display:none;padding:.9vh 3.5vw;font-size:3.2vh;font-weight:800;
+            letter-spacing:.32em;color:#04060a;background:var(--amber);
+            clip-path:var(--chamfer);box-shadow:0 0 34px rgba(255,176,32,.6)}
+  body.limiter #pitlimit{display:block;animation:limitpulse .6s ease infinite}
+  @keyframes limitpulse{50%{opacity:.45}}
+
+  /* aviso: la pantalla puede apagarse (Wake Lock no disponible / se soltó).
+     Anclado ARRIBA (no abajo) para no tapar la lectura de combustible/#conn de la banda inferior. */
+  #nolock{position:fixed;top:calc(1vh + env(safe-area-inset-top));left:50%;
+    transform:translateX(-50%);z-index:45;display:none;flex-direction:column;align-items:center;gap:.2vh;
+    padding:.5vh 3vw;font-size:clamp(10px,1.8vh,15px);font-weight:800;letter-spacing:.12em;color:#04060a;
+    background:var(--amber);clip-path:var(--chamfer);box-shadow:0 0 20px rgba(255,176,32,.5)}
+  #nolock.show{display:flex}
+  #nolock small{font-weight:600;letter-spacing:.06em;font-size:.7em;color:#3a2c05}
+  #nosleep{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:0;top:0}
+
+  #conn{flex:none;white-space:nowrap;padding:0 2.5vw;display:flex;align-items:center;justify-content:center;
+        font-size:1.8vh;letter-spacing:.18em;color:var(--dim);gap:.6vw}
+  #conn::before{content:"";width:clamp(9px,1.4vh,14px);height:clamp(9px,1.4vh,14px);border-radius:50%;background:#333}
+  #conn.ok{color:var(--green)} #conn.ok::before{background:var(--green);box-shadow:0 0 10px var(--green)}
+  #conn.warn{color:var(--amber)} #conn.warn::before{background:var(--amber);box-shadow:0 0 10px var(--amber)}
+
+  /* ================= TAP PARA FULLSCREEN ================= */
+  #fshint{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;text-align:center;gap:1.4vh;padding:3vh;
+          background:rgba(4,6,10,.78);backdrop-filter:blur(2px);
+          letter-spacing:.22em;text-transform:uppercase;font-weight:700;
+          font-size:clamp(13px,2.6vh,22px);color:var(--txt);
+          transition:opacity .3s;cursor:pointer}
+  #fshint small{letter-spacing:.12em;font-weight:600;font-size:.62em;color:var(--dim)}
+  #fshint.hide{opacity:0;pointer-events:none}
+
+  /* ================= PÁGINAS (Dash / Tiempos) ================= */
+  .page{flex:1;min-height:0;display:flex;flex-direction:column}
+  .page.hidden{display:none}
+  /* ---- botones de control (dash / tiempos / fullscreen) ---- */
+  .btn{pointer-events:auto;cursor:pointer;display:inline-flex;align-items:center;gap:.5vw;
+       font-family:var(--mono);font-size:1.9vh;font-weight:700;letter-spacing:.1em;
+       color:var(--txt);background:rgba(13,17,24,.85);border:1px solid var(--line);
+       border-radius:6px;padding:.6vh 1.5vw;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+  .btn:active{background:var(--panel2);border-color:var(--cyan);color:var(--cyan)}
+  #ctrlbar{flex:none;display:flex;justify-content:flex-end;gap:1vw;padding:.5vh 1.4vw 0}
+  #tbar{flex:none;display:flex;align-items:center;justify-content:space-between;
+        gap:1vw;padding:.2vh 0 1.2vh}
+  #tbar .ttitle{font-size:2.1vh;letter-spacing:.22em;color:var(--dim);font-weight:700}
+
+  /* ---- tabla de tiempos (tabla real: auto-ajusta columnas, no recorta) ---- */
+  #timingview{padding:1.2vh 1.6vw;overflow:hidden}
+  #tboard{width:100%}
+  #ttable{width:100%;border-collapse:separate;border-spacing:0 .6vh;table-layout:auto}
+  #ttable th{color:var(--dim);font-size:1.6vh;letter-spacing:.14em;font-weight:600;
+             padding:0 1.4vw .5vh;text-align:left;white-space:nowrap}
+  #ttable th.tp{text-align:center}
+  #ttable th.tl,#ttable th.tb{text-align:right}
+  #ttable td{background:linear-gradient(180deg,var(--panel2),var(--panel));
+             border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+             padding:.6vh 1.4vw;font-variant-numeric:tabular-nums;
+             font-size:clamp(15px,3vh,30px);white-space:nowrap}
+  #ttable td.tp{border-left:1px solid var(--line);border-radius:5px 0 0 5px;
+                text-align:center;font-weight:800;color:var(--cyan);width:1%}
+  #ttable td.tn{width:100%;max-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:700}
+  #ttable td.tl{text-align:right;width:1%}
+  #ttable td.tb{text-align:right;font-weight:800;color:var(--blue);width:1%;
+                border-right:1px solid var(--line);border-radius:0 5px 5px 0}
+  #ttable tr.me td{border-color:var(--cyan);box-shadow:inset 0 0 16px rgba(39,224,255,.16)}
+  #ttable tr.me td.tn{color:var(--cyan)}
+  #tempty{display:flex;align-items:center;justify-content:center;text-align:center;
+          color:var(--dim);letter-spacing:.08em;font-size:2.2vh;padding:4vh 3vh}
+
+  /* ---- página DAMPERS (histograma de velocidad de amortiguador) ---- */
+  #damperview{padding:1vh 1.4vw;gap:1vh}
+  #dbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:1vw}
+  #dbar .dtitle{font-size:1.9vh;letter-spacing:.16em;color:var(--dim);font-weight:700;white-space:nowrap}
+  #dbar .dtitle b{color:var(--txt)}
+  #dbar #dinfo{color:var(--cyan);font-variant-numeric:tabular-nums}
+  #dbar .dbtns{display:flex;gap:.8vw}
+  #dgrid{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1vh}
+  .dcorner{min-height:0;display:flex;flex-direction:column;padding:.6vh 1vw;
+           background:linear-gradient(180deg,var(--panel2),var(--panel));
+           border:1px solid var(--line);clip-path:var(--chamfer)}
+  .dchead{flex:none;display:flex;justify-content:space-between;align-items:baseline;gap:1vw}
+  .dcname{font-weight:800;font-size:2.1vh;letter-spacing:.1em}
+  .dcmeta{font-size:1.4vh;color:var(--dim);font-variant-numeric:tabular-nums;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dbars{flex:1;min-height:0;display:flex;align-items:flex-end;gap:1px;position:relative;
+         margin-top:.6vh;border-bottom:1px solid var(--line)}
+  .dbars::before{content:"";position:absolute;left:43.75%;right:43.75%;top:0;bottom:0;
+                 background:rgba(255,255,255,.05)}
+  .dbars::after{content:"";position:absolute;left:50%;top:0;bottom:0;border-left:1px solid #ffffff30}
+  .dbars i{flex:1;min-height:1px;border-radius:1px 1px 0 0;position:relative;z-index:1}
+  .dbars i.reb{background:var(--cyan)}
+  .dbars i.bump{background:var(--amber)}
+  .dbars i.hi{opacity:.4}
+  #drecs{flex:none;display:flex;flex-direction:column;gap:.5vh;max-height:36vh;overflow-y:auto}
+  .drec{font-size:1.55vh;line-height:1.3;color:var(--txt);background:#0d1118;
+        border-left:3px solid var(--amber);padding:.5vh 1vw;border-radius:0 4px 4px 0}
+  .drec.spring{border-left-color:var(--cyan)}
+  .drecdiv{font-size:1.35vh;letter-spacing:.2em;color:var(--dim);font-weight:700;
+           padding:.5vh 0 .1vh;border-top:1px solid var(--line)}
+
+  /* ---- boton detener servidor + modales ---- */
+  .btn.stop{color:var(--red);border-color:#3a2330}
+  .btn.stop:active{background:var(--red);border-color:var(--red);color:#04060a}
+  .btn.danger{color:#04060a;background:var(--red);border-color:var(--red);font-weight:800}
+  .modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+         background:rgba(4,6,10,.85);backdrop-filter:blur(2px);padding:4vh}
+  .modal.hidden{display:none}
+  .modalbox{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+            border-radius:10px;padding:3vh 5vw;max-width:90vw;text-align:center;
+            display:flex;flex-direction:column;gap:1.6vh;align-items:center}
+  .modaltitle{font-size:clamp(16px,3.4vh,30px);font-weight:800;letter-spacing:.03em}
+  .modalsub{font-size:clamp(12px,2vh,18px);color:var(--dim);line-height:1.45}
+  .modalsub b{color:var(--txt)}
+  .modalbtns{display:flex;gap:3vw;margin-top:1vh}
+  .modalbtns .btn{font-size:clamp(14px,2.6vh,22px);padding:1.1vh 5vw}
+  .btn.go{color:#04060a;background:var(--cyan);border-color:var(--cyan);font-weight:800}
+
+  /* ---- modal de formato de carrera ---- */
+  .rcfgtabs{display:flex;gap:2vw;margin-top:.5vh}
+  .rcfgtab{font-size:clamp(14px,2.4vh,20px);padding:.9vh 4vw;opacity:.55}
+  .rcfgtab.on{opacity:1;border-color:var(--cyan);color:var(--cyan);background:var(--panel2)}
+  .rcfgvalrow{display:flex;align-items:baseline;gap:1.5vw}
+  #rcfgval{width:34vw;max-width:180px;font-family:var(--mono);font-size:clamp(28px,6vh,52px);
+           font-weight:800;text-align:center;color:var(--txt);background:#10151d;
+           border:1px solid var(--line);border-radius:8px;padding:.6vh 1vw;
+           font-variant-numeric:tabular-nums;-webkit-appearance:none}
+  #rcfgunit{font-size:clamp(14px,2.4vh,20px);color:var(--dim);letter-spacing:.1em}
+  .rcfgchk{display:flex;align-items:center;gap:1.5vw;font-size:clamp(12px,2vh,18px);color:var(--dim)}
+  .rcfgchk input{width:2.6vh;height:2.6vh;accent-color:var(--cyan)}
+  .rcfgtelrow{display:flex;flex-direction:column;gap:.6vh;align-items:center}
+  .rcfgtellbl{font-size:clamp(11px,1.8vh,16px);color:var(--dim);letter-spacing:.06em}
+  .rcfgteltabs .rcfgtab{font-size:clamp(11px,1.9vh,16px);padding:.7vh 3vw}
+
+  /* ================= PÁGINA ESTRATEGIA ================= */
+  #strategyview{padding:1vh 1.4vw;gap:1vh}
+  #sbar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:1vw}
+  #sbar .stitle{font-size:1.9vh;letter-spacing:.16em;color:var(--dim);font-weight:700;white-space:nowrap}
+  #sbar .stitle b{color:var(--txt)}
+  #sbar #sinfo{color:var(--cyan);font-variant-numeric:tabular-nums}
+  #srec{font-size:clamp(12px,1.9vh,20px);letter-spacing:.06em;color:var(--dim);font-variant-numeric:tabular-nums}
+  #srec.on{color:var(--red)}
+  #sbar .sbtns{display:flex;gap:.8vw}
+  #scalib{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;
+          color:var(--dim);letter-spacing:.06em;font-size:2.2vh;padding:3vh}
+  #sbody{flex:1;min-height:0;display:flex;flex-direction:column;gap:1vh}
+  #sbody.hidden,#scalib.hidden{display:none}
+  #sgrid{flex:1;min-height:0;display:grid;grid-template-columns:1.25fr 1fr;gap:1vh}
+
+  /* número gigante: combustible al final + semáforo */
+  #sfuel{display:flex;flex-direction:column;justify-content:center;gap:.3vh;
+         padding:1vh 1.6vw;border:1px solid var(--line);clip-path:var(--chamfer);
+         background:linear-gradient(180deg,var(--panel2),var(--panel));position:relative;overflow:hidden}
+  #sfuel::after{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--st,var(--green))}
+  #sfuel.st-green{--st:var(--green)}
+  #sfuel.st-amber{--st:var(--amber)}
+  #sfuel.st-red{--st:var(--red);animation:fuelwarn 1.1s ease infinite}
+  #sfuel.st-plan{--st:var(--cyan)}
+  #sfuel .sbignum{font-size:clamp(38px,12vh,118px);font-weight:800;line-height:.95;
+                  font-variant-numeric:tabular-nums;color:var(--st,var(--txt))}
+  #sfuel .sbignum small{font-size:.3em;color:var(--dim);font-weight:700}
+  #sfuelmargin{font-size:1.8vh;color:var(--dim);font-variant-numeric:tabular-nums;letter-spacing:.03em}
+  #ssave{margin-top:.5vh;font-size:2.3vh;font-weight:800;color:var(--amber);letter-spacing:.03em}
+  #ssave.hidden{display:none}
+  #ssave b{font-size:1.25em}
+  #ssave.imposs{color:var(--red)}
+  #ssavehint{font-size:.6em;font-weight:600;color:var(--dim);letter-spacing:.02em;margin-top:.2vh}
+
+  /* esquema de 4 ruedas: desgaste % + temperatura */
+  #swheels{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:.8vh}
+  .swheel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.1vh;
+          border:1px solid var(--line);border-radius:6px;background:#0d1118;padding:.3vh}
+  .swheel b{font-size:1.5vh;letter-spacing:.12em;color:var(--dim)}
+  .swheel .sw{font-size:3.4vh;font-weight:800;font-variant-numeric:tabular-nums}
+  .swheel .stmp{font-size:1.4vh;color:var(--dim);font-variant-numeric:tabular-nums}
+  .swheel.w-green .sw{color:var(--green)}
+  .swheel.w-amber .sw{color:var(--amber)}
+  .swheel.w-red .sw{color:var(--red)}
+  .swheel.worst{border-color:var(--red);box-shadow:inset 0 0 18px rgba(255,46,77,.3)}
+  .swheel.hot .stmp{color:var(--red);font-weight:800}
+  .swheel.cold .stmp{color:var(--blue);font-weight:800}
+
+  /* limitante del stint */
+  #slimrow{flex:none;text-align:center}
+  #scross{flex:none;padding:1vh 1.2vw;border-radius:.8vh;text-align:center;
+          display:flex;flex-direction:column;gap:.3vh;line-height:1.15}
+  #scross #scrosstitle{font-size:2.1vh;font-weight:800;letter-spacing:.02em}
+  #scross #scrosssig{font-size:1.3vh;opacity:.85}
+  #scross.cx-green{background:#10331a;color:#7fe0a0;border:1px solid #1d5e33}
+  #scross.cx-amber{background:#3a3010;color:#ffd166;border:1px solid #7a6320}
+  #scross.cx-red{background:#3a1212;color:#ff8a8a;border:1px solid #7a2424;animation:cxpulse 1s infinite}
+  #scross.cx-calib{background:#1a2430;color:#8aa3c0;border:1px solid #2a3a4a}
+  #scross.cx-calib #scrosstitle{font-weight:600}
+  @keyframes cxpulse{0%,100%{opacity:1}50%{opacity:.5}}
+  #slimiter{font-size:2vh;font-weight:800;letter-spacing:.05em;padding:.5vh 2.5vw;
+            border-radius:5px;display:inline-block;font-variant-numeric:tabular-nums}
+  #slimiter.lim-fuel{color:var(--amber);background:rgba(255,176,32,.12)}
+  #slimiter.lim-tyre{color:var(--red);background:rgba(255,46,77,.15)}
+  #slimiter.lim-plan{color:var(--cyan);background:rgba(39,224,255,.12);font-size:1.8vh}
+
+  /* stint + ventana de pit */
+  #sstint{flex:none;display:flex;flex-direction:column;gap:.6vh}
+  #sstint .srow{display:flex;justify-content:space-between;align-items:baseline}
+  #spitwin{font-size:2.5vh;font-weight:800;color:var(--cyan);font-variant-numeric:tabular-nums}
+  #sstops{font-size:1.7vh}
+  .dim{color:var(--dim)}
+  #sbarwrap{height:2.4vh;background:#10151d;border:1px solid var(--line);border-radius:5px;
+            position:relative;overflow:hidden}
+  #sbarwin{position:absolute;top:0;bottom:0;left:0;width:0;background:rgba(43,240,122,.30);
+           border-left:2px solid var(--green);border-right:2px solid var(--green)}
+  #sbarlimit{position:absolute;top:0;bottom:0;left:0;width:3px;background:var(--red);box-shadow:0 0 8px var(--red)}
+  #sbarenf{position:absolute;top:-1px;bottom:-1px;left:0;width:0;border-left:2px dashed var(--amber)}
+  #sbarenf.hidden{display:none}
+
+  /* litros a cargar en boxes */
+  #sadd{flex:none;font-size:2.2vh;font-weight:700;color:var(--txt);background:#0d1118;
+        border-left:3px solid var(--cyan);padding:.6vh 1.4vw;border-radius:0 5px 5px 0}
+  #sadd.hidden{display:none}
+  #sadd b{color:var(--cyan);font-size:1.2em}
+  #saddwarn{color:var(--red);font-size:.7em;font-weight:700;letter-spacing:.02em}
+
+  /* ================= PÁGINA GOMAS + BALANCE ================= */
+  #tyresview{padding:1vh 1.4vw;gap:1.2vh}
+  #ybar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:1vw}
+  #ybar .ytitle{font-size:1.9vh;letter-spacing:.16em;color:var(--dim);font-weight:700;
+                white-space:nowrap;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  #ybar .ytitle b{color:var(--txt)}
+  #ybar #yinfo{color:var(--cyan);font-variant-numeric:tabular-nums}
+  #ybar .ybtns{display:flex;gap:.8vw}
+  #ybalance{flex:none;display:flex;flex-direction:column;gap:.6vh;padding:1vh 1.2vw;
+            border:1px solid var(--line);clip-path:var(--chamfer);
+            background:linear-gradient(180deg,var(--panel2),var(--panel))}
+  #yballabels{display:flex;justify-content:space-between;font-size:1.35vh;
+              letter-spacing:.1em;color:var(--dim);font-weight:700}
+  #ybalbar{position:relative;height:3.2vh;background:#10151d;border:1px solid var(--line);
+           border-radius:5px;overflow:hidden}
+  #ybalmid{position:absolute;left:50%;top:0;bottom:0;border-left:1px dashed #ffffff40}
+  #ybalmark{position:absolute;top:0;bottom:0;left:50%;width:4px;background:var(--cyan);
+            box-shadow:0 0 10px var(--cyan);transition:left .3s}
+  #ybalverdict{text-align:center;font-size:2.4vh;font-weight:800;letter-spacing:.03em;color:var(--dim)}
+  #ybalverdict.u{color:var(--amber)} #ybalverdict.o{color:var(--red)} #ybalverdict.n{color:var(--green)}
+  #ygrid{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1vh}
+  .ycorner{min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4vh;
+           background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+           clip-path:var(--chamfer)}
+  .ycorner b{font-size:1.6vh;letter-spacing:.14em;color:var(--dim)}
+  .ycorner .yp{font-size:5vh;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .ycorner .yp small{font-size:.30em;color:var(--dim);font-weight:700;letter-spacing:.05em}
+  .ycorner .ysub{font-size:1.7vh;color:var(--dim);font-variant-numeric:tabular-nums;text-align:center}
+  .ycorner .ysub .hot{color:var(--red);font-weight:800} .ycorner .ysub .cold{color:var(--blue);font-weight:800}
+
+  /* ================= LAYOUT VERTICAL (PORTRAIT) ================= */
+  /* iPhone/iPad de pie en el cockpit: el dash landscape colapsa, acá se apila. */
+  @media (orientation:portrait){
+    /* dash principal: una columna, la marcha protagonista */
+    #grid{grid-template-columns:1fr;grid-template-rows:auto;gap:.8vh;padding:.8vh}
+    #center{order:1;width:100%;min-height:36vh;overflow:visible}
+    #grid>.col:nth-child(3){order:2}   /* tiempos (derecha) suben */
+    #grid>.col:nth-child(1){order:3}   /* splits/posición (izquierda) al final */
+    /* las columnas laterales pasan a bandas horizontales (el centro NO: la marcha
+       sigue apilada en columna — :not(#center) evita que esta regla lo capture) */
+    #grid>.col:not(#center){flex-direction:row;flex-wrap:wrap;gap:.6vh}
+    #grid>.col:not(#center) .box{flex:1 1 45%;min-height:8vh;min-width:0}
+
+    /* marcha y velocidad dimensionadas por ANCHO (no por alto) */
+    #gear{font-size:clamp(80px,44vw,220px)}
+    #speed{font-size:clamp(26px,14vw,72px)}
+    .pedal{min-width:10px}
+
+    /* .duo (position+lap) hereda flex-basis 0 del base y se mete de astilla en la
+       primera fila en vez de envolver: en portrait ocupa su propia fila completa */
+    #grid>.col:not(#center) .duo{flex:1 1 100%}
+
+    /* clamps por ancho: las cajas al 45% ≈ 165px en un viewport de 375px */
+    .lap{font-size:clamp(14px,6.5vw,34px)}
+    .split{font-size:clamp(16px,8vw,40px)}
+    .small{font-size:clamp(14px,7vw,36px)}
+    #rpmnum{font-size:clamp(12px,4.5vw,20px)}
+    #fuelval{font-size:clamp(15px,5.5vw,26px)}
+    #fuellaps b{font-size:clamp(14px,5vw,24px)}
+    #fuellaps span{font-size:clamp(9px,3vw,13px)}
+    #fuelpct{font-size:clamp(10px,3.5vw,16px)}
+
+    /* fila inferior: que #conn pueda envolver debajo sin recortarse */
+    #bottom{height:auto;min-height:10vh;flex-wrap:wrap;padding-bottom:calc(1vh + env(safe-area-inset-bottom))}
+    #fuelbox{min-width:0}
+    /* #conn sin width fija se quedaría en 1.8vh (~ilegible en teléfono): clamp por alto */
+    #conn{font-size:clamp(11px,1.8vh,18px)}
+
+    /* touch targets cómodos SOLO en portrait */
+    .btn{min-height:44px;padding:.6vh max(3vw,12px)}
+    #btnstop,#btnfs,#btnfs2,#btnfs3,#btnfs4,#btnreset,#btnracecfg,#btntts{min-width:44px;justify-content:center}
+
+    /* páginas secundarias apiladas + scroll vertical */
+    /* los títulos de header ceden espacio (elipsis) para que los botones ⚙/🔊/⛶ no salgan de pantalla */
+    #sbar .stitle,#dbar .dtitle{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+    /* flex:none -> el grid toma su alto natural (4x22vh) en vez de que flex:1 lo aplaste
+       y el contenido desborde encima de #drecs; la pagina scrollea con #damperview */
+    #dgrid{grid-template-columns:1fr;grid-template-rows:repeat(4,minmax(22vh,1fr));flex:none}
+    #damperview{overflow-y:auto}
+    #drecs{max-height:none;overflow:visible}   /* recs fluyen en el scroll de la pagina, sin scroll anidado */
+    #sgrid{grid-template-columns:1fr}
+    #sfuel .sbignum{font-size:clamp(38px,16vw,96px)}
+    #strategyview{overflow-y:auto}
+    #tyresview{overflow-y:auto}
+    #srec{font-weight:700}   /* REC más grueso/legible en el teléfono (en landscape queda normal) */
+    #ttable td{font-size:clamp(14px,3.4vw,24px)}
+    #ttable td,#ttable th{padding-left:2vw;padding-right:2vw}
+  }
+</style>
+</head>
+<body>
+
+  <div id="fshint">Toca para pantalla completa
+    <small>intenta mantener la pantalla activa · iPhone: Compartir → Agregar a inicio</small></div>
+
+  <div id="pitlimit">PIT LIMITER</div>
+
+  <div id="nolock">⚠ PANTALLA PUEDE APAGARSE<small>toca la pantalla para reintentar</small></div>
+  <video id="nosleep" src="nosleep.mp4" muted playsinline loop disableRemotePlayback></video>
+
+  <div id="stopconfirm" class="modal hidden">
+    <div class="modalbox">
+      <div class="modaltitle">¿Detener el servidor del dash?</div>
+      <div class="modalsub">El dashboard se desconectará. Para reiniciarlo, corre <b>start-acevo.bat</b> en el PC.</div>
+      <div class="modalbtns">
+        <button class="btn" id="stopcancel">Cancelar</button>
+        <button class="btn danger" id="stopok">Detener</button>
+      </div>
+    </div>
+  </div>
+  <div id="stopped" class="modal hidden">
+    <div class="modalbox">
+      <div class="modaltitle">Servidor detenido</div>
+      <div class="modalsub">Corre <b>start-acevo.bat</b> en el PC para reiniciarlo y recarga esta página.</div>
+    </div>
+  </div>
+
+  <div id="racecfg" class="modal hidden">
+    <div class="modalbox">
+      <div class="modaltitle">Formato de carrera</div>
+      <div class="modalsub">La shared memory no conoce la carrera futura en práctica.<br>
+        Cárgalo a mano y el plan se calcula con tu consumo medido.<br>
+        <b>En carrera, los datos en vivo mandan.</b></div>
+      <div class="rcfgtabs">
+        <button class="btn rcfgtab on" id="rcfgtimed">⏱ Tiempo</button>
+        <button class="btn rcfgtab" id="rcfglaps">🏁 Vueltas</button>
+      </div>
+      <div class="rcfgvalrow">
+        <input id="rcfgval" type="number" min="1" inputmode="numeric" value="30">
+        <span id="rcfgunit">min</span>
+      </div>
+      <label class="rcfgchk"><input type="checkbox" id="rcfgadd"> +1 vuelta tras el reloj</label>
+      <label class="rcfgchk"><input type="checkbox" id="rcfgalllaps" checked> Contar todas las vueltas (incl. inválidas)</label>
+      <div class="rcfgtelrow">
+        <span class="rcfgtellbl">Telemetría a disco</span>
+        <div class="rcfgtabs rcfgteltabs">
+          <button class="btn rcfgtab" id="rctel_off">Off</button>
+          <button class="btn rcfgtab" id="rctel_summary">Resumen</button>
+          <button class="btn rcfgtab on" id="rctel_full">Completa</button>
+        </div>
+      </div>
+      <div class="modalbtns">
+        <button class="btn" id="rcfgclear">Quitar</button>
+        <button class="btn go" id="rcfgsave">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dashview" class="page">
+  <div id="ledwrap">
+    <div id="leds"></div>
+    <div id="rpmrow">
+      <span id="badges">
+        <span class="badge" id="bWarn">⚠ MOTOR</span>
+      </span>
+      <span class="label" id="gearhint">&nbsp;</span>
+      <span id="rpmnum">0 <small>RPM</small></span>
+    </div>
+  </div>
+
+  <div id="ctrlbar">
+    <button class="btn stop" id="btnstop" title="Detener servidor">⏻</button>
+    <button class="btn" id="btnfs" title="Pantalla completa">⛶</button>
+    <button class="btn" id="btntimes">TIEMPOS ▸</button>
+    <button class="btn" id="btndamp">DAMPERS ▸</button>
+    <button class="btn" id="btntyres" title="Gomas y balance">🛞 ▸</button>
+  </div>
+
+  <div id="grid">
+    <div class="col">
+      <div class="box" id="ahead"><span class="label">Car ahead</span>
+        <span class="val split"><b>▲</b><span>--.---</span></span></div>
+      <div class="box" id="behind"><span class="label">Car behind</span>
+        <span class="val split"><b>▼</b><span>--.---</span></span></div>
+      <div class="duo">
+        <div class="box" id="pos"><span class="label">Position</span>
+          <span class="val small"><b>P</b><span>-</span><span style="color:var(--dim);font-size:.6em">/-</span></span></div>
+        <div class="box" id="lapn"><span class="label">Lap</span><span class="val small">-</span></div>
+      </div>
+    </div>
+
+    <div class="box col" id="center">
+      <div class="pedal" id="pbrk"></div><div class="pedal" id="pthr"></div>
+      <div id="assists">
+        <span class="assist" id="aTc">TC</span>
+        <span class="assist" id="aAbs">ABS</span>
+      </div>
+      <div id="gear" class="neu">N</div>
+      <div id="speedbox"><span class="label">Speed km/h</span><div class="val" id="speed">0</div></div>
+    </div>
+
+    <div class="col">
+      <div class="box" id="cur"><span class="label">Current lap</span><span class="val lap">--:--.---</span></div>
+      <div class="box" id="last"><span class="label">Last lap</span><span class="val lap">--:--.---</span></div>
+      <div class="box" id="best"><span class="label">Best lap</span><span class="val lap">--:--.---</span></div>
+      <div class="box" id="timeleft"><span class="label">Time left</span><span class="val lap">--:--</span></div>
+    </div>
+  </div>
+
+  <div id="bottom">
+    <div class="box" id="fuelbox">
+      <span class="label">Fuel</span>
+      <div id="fuelmain">
+        <span class="val" id="fuelval">-- L</span>
+        <span id="fuelpct"></span>
+        <div id="fuelbar"><div id="fuelfill"></div></div>
+        <div id="fuellaps"><b>~-- v</b><span>-- L/v</span></div>
+      </div>
+    </div>
+    <div class="box" id="conn">SIN SEÑAL</div>
+  </div>
+  </div><!-- /dashview -->
+
+  <div id="timingview" class="page hidden">
+    <div id="tbar">
+      <button class="btn" id="btnback">◂ DASH</button>
+      <span class="ttitle">TIEMPOS</span>
+      <button class="btn" id="btnfs2" title="Pantalla completa">⛶</button>
+    </div>
+    <div id="tboard"></div>
+    <div id="tempty">Sin sesión activa — entra a una sesión para ver los tiempos</div>
+  </div>
+
+  <div id="damperview" class="page hidden">
+    <div id="dbar">
+      <button class="btn" id="btnbackd">◂ DASH</button>
+      <span class="dtitle"><b>DAMPERS</b> <span id="dinfo">—</span></span>
+      <span class="dbtns">
+        <button class="btn" id="btnreset" title="Reiniciar acumulado">↺</button>
+        <button class="btn" id="btnfs3" title="Pantalla completa">⛶</button>
+      </span>
+    </div>
+    <div id="dgrid">
+      <div class="dcorner" id="dFL"><div class="dchead"><span class="dcname">FL</span><span class="dcmeta">sin datos</span></div><div class="dbars"></div></div>
+      <div class="dcorner" id="dFR"><div class="dchead"><span class="dcname">FR</span><span class="dcmeta">sin datos</span></div><div class="dbars"></div></div>
+      <div class="dcorner" id="dRL"><div class="dchead"><span class="dcname">RL</span><span class="dcmeta">sin datos</span></div><div class="dbars"></div></div>
+      <div class="dcorner" id="dRR"><div class="dchead"><span class="dcname">RR</span><span class="dcmeta">sin datos</span></div><div class="dbars"></div></div>
+    </div>
+    <div id="drecs"></div>
+  </div>
+
+  <div id="strategyview" class="page hidden">
+    <div id="sbar">
+      <button class="btn" id="btnbacks">◂ DASH</button>
+      <span class="stitle"><b>ESTRATEGIA</b> <span id="sinfo">—</span> <span id="srec"></span></span>
+      <span class="sbtns">
+        <button class="btn" id="btnracecfg" title="Configurar carrera">⚙</button>
+        <button class="btn" id="btntts" title="Voz del ingeniero">🔊</button>
+        <button class="btn" id="btnfs4" title="Pantalla completa">⛶</button>
+      </span>
+    </div>
+
+    <div id="scalib">Sin sesión — entra a pista para ver la estrategia</div>
+
+    <div id="sbody" class="hidden">
+      <div id="scross" class="hidden">
+        <b id="scrosstitle">—</b><span id="scrosssig"></span>
+      </div>
+      <div id="sgrid">
+        <div id="sfuel" class="st-green">
+          <span class="slabel" id="sfuellabel">Combustible al final</span>
+          <div class="sbignum"><span id="sfuelnum">--</span><small id="sfuelunit"> L</small></div>
+          <div id="sfuelmargin">margen — v</div>
+          <div id="ssave" class="hidden">AHORRA <b id="ssaveval">--</b> L/v<div id="ssavehint"></div></div>
+        </div>
+        <div id="swheels">
+          <div class="swheel" id="swFL"><b>FL</b><span class="sw">--%</span><span class="stmp">--°</span></div>
+          <div class="swheel" id="swFR"><b>FR</b><span class="sw">--%</span><span class="stmp">--°</span></div>
+          <div class="swheel" id="swRL"><b>RL</b><span class="sw">--%</span><span class="stmp">--°</span></div>
+          <div class="swheel" id="swRR"><b>RR</b><span class="sw">--%</span><span class="stmp">--°</span></div>
+        </div>
+      </div>
+
+      <div id="slimrow"><span id="slimiter" class="lim-fuel">—</span></div>
+
+      <div id="sstint">
+        <div class="srow"><span id="spitwin">PIT en — v</span><span id="sstops" class="dim">—</span></div>
+        <div id="sbarwrap">
+          <div id="sbarwin"></div>
+          <div id="sbarlimit"></div>
+          <div id="sbarenf" class="hidden"></div>
+        </div>
+      </div>
+
+      <div id="sadd" class="hidden">EN PIT: cargar <b id="saddval">--</b> L <span id="saddwarn"></span></div>
+    </div>
+  </div>
+
+  <div id="tyresview" class="page hidden">
+    <div id="ybar">
+      <button class="btn" id="btnbacky">◂ DASH</button>
+      <span class="ytitle"><b>GOMAS + BALANCE</b> <span id="yinfo">—</span></span>
+      <span class="ybtns">
+        <button class="btn" id="btnrsettyres" title="Reiniciar balance">↺</button>
+        <button class="btn" id="btnfs5" title="Pantalla completa">⛶</button>
+      </span>
+    </div>
+    <div id="ybalance">
+      <div id="yballabels"><span>◂ SUBVIRA</span><span>NEUTRO</span><span>SOBREVIRA ▸</span></div>
+      <div id="ybalbar"><div id="ybalmid"></div><div id="ybalmark"></div></div>
+      <div id="ybalverdict">—</div>
+    </div>
+    <div id="ygrid">
+      <div class="ycorner" id="yFL"><b>FL</b><div class="yp">--<small>bar</small></div><div class="ysub">--</div></div>
+      <div class="ycorner" id="yFR"><b>FR</b><div class="yp">--<small>bar</small></div><div class="ysub">--</div></div>
+      <div class="ycorner" id="yRL"><b>RL</b><div class="yp">--<small>bar</small></div><div class="ysub">--</div></div>
+      <div class="ycorner" id="yRR"><b>RR</b><div class="yp">--<small>bar</small></div><div class="ysub">--</div></div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const els = {
+  leds:[], rpmnum:$("rpmnum"), gear:$("gear"), gearhint:$("gearhint"), speed:$("speed"),
+  ahead:$("ahead").querySelector(".split span"),
+  behind:$("behind").querySelector(".split span"),
+  posN:$("pos").querySelectorAll(".val span")[0],
+  posT:$("pos").querySelectorAll(".val span")[1],
+  lapn:$("lapn").querySelector(".val"),
+  cur:$("cur").querySelector(".lap"), last:$("last").querySelector(".lap"),
+  best:$("best").querySelector(".lap"), bestBox:$("best"),
+  timeleft:$("timeleft").querySelector(".lap"),
+  fuelfill:$("fuelfill"), fuelval:$("fuelval"), fuelpct:$("fuelpct"), fuellaps:$("fuellaps"),
+  conn:$("conn"), pthr:$("pthr"), pbrk:$("pbrk"),
+  bWarn:$("bWarn"), aTc:$("aTc"), aAbs:$("aAbs"),
+};
+
+/* tira de 20 LEDs: 12 verdes, 5 ámbar, 3 rojos (como un volante real) */
+const N_LEDS = 20;
+{
+  const wrap = $("leds");
+  for(let i=0;i<N_LEDS;i++){
+    const led = document.createElement("i");
+    led.className = i<12 ? "g" : i<17 ? "a" : "r";
+    wrap.appendChild(led); els.leds.push(led);
+  }
+}
+
+const fmtLap = t => {
+  if(t==null||t<0) return "--:--.---";
+  const m=Math.floor(t/60), s=t-m*60;
+  return `${String(m).padStart(2,"0")}:${s.toFixed(3).padStart(6,"0")}`;
+};
+const fmtSplit = t => t==null ? "--.---" : t.toFixed(3);
+const fmtClock = t => {
+  if(t==null||t<0) return "--:--";
+  const h=Math.floor(t/3600), m=Math.floor(t%3600/60), s=Math.floor(t%60);
+  return h>0 ? `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`
+             : `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+};
+
+/* estado objetivo (del WS) + estado mostrado (interpolado) */
+let target=null, prevBest=null;
+let disp={rpm:0, speed:0};
+/* latch de TC/ABS: los flags parpadean ~10Hz al intervenir; se mantienen
+   encendidos un ratito tras la ultima activacion para que sean legibles */
+let tcUntil=0, absUntil=0;
+
+function applyStatic(d){
+  els.gear.textContent = d.gear===-1 ? "R" : (d.gear===0 ? "N" : d.gear);
+  const frac = d.rpm/d.max_rpm;
+  els.gear.className = d.gear===-1 ? "rev" : d.gear===0 ? "neu" : (frac>0.9 ? "hi" : "");
+  els.gearhint.textContent = d.gear>0 && frac>0.95 ? "SHIFT!" : "\u00a0";
+
+  els.pthr.style.transform = `scaleY(${d.throttle/100})`;
+  els.pbrk.style.transform = `scaleY(${d.brake/100})`;
+
+  els.ahead.textContent  = fmtSplit(d.split_ahead);
+  els.behind.textContent = fmtSplit(d.split_behind);
+  els.posN.textContent = d.position || "-";
+  els.posT.textContent = "/" + (d.num_participants || "-");
+  els.lapn.textContent = d.current_lap || "-";
+
+  els.cur.textContent  = fmtLap(d.current_time);
+  els.last.textContent = fmtLap(d.last_lap);
+  els.best.textContent = fmtLap(d.best_lap);
+  els.timeleft.textContent = fmtClock(d.event_remaining);
+
+  /* flash púrpura al mejorar el best */
+  if(d.best_lap!=null && (prevBest==null || d.best_lap < prevBest - 1e-4)){
+    if(prevBest!=null){
+      els.bestBox.classList.remove("record");
+      void els.bestBox.offsetWidth;           // reinicia la animación
+      els.bestBox.classList.add("record");
+    }
+    prevBest = d.best_lap;
+  }
+
+  const f = d.fuel_capacity ? d.fuel_liters/d.fuel_capacity : 0;
+  els.fuelfill.style.transform = `scaleX(${f})`;
+  els.fuelfill.style.background = f>0.35 ? "var(--green)" : f>0.15 ? "var(--amber)" : "var(--red)";
+  els.fuelval.textContent = d.fuel_capacity ? `${d.fuel_liters.toFixed(1)} L` : "-- L";
+  els.fuelpct.textContent = d.fuel_capacity ? `${Math.round(f*100)}%` : "";
+  els.fuellaps.querySelector("b").textContent = d.fuel_laps_left!=null ? `~${d.fuel_laps_left} v` : "~-- v";
+  els.fuellaps.querySelector("span").textContent = d.fuel_per_lap!=null ? `${d.fuel_per_lap.toFixed(2)} L/v` : "-- L/v";
+  document.body.classList.toggle("lowfuel", d.fuel_capacity>0 && f<0.1);
+
+  /* flags de coche (con latch de 250ms para TC/ABS) */
+  const now = performance.now();
+  if(d.tc_active)  tcUntil  = now + 250;
+  if(d.abs_active) absUntil = now + 250;
+  els.aTc.classList.toggle("on", now < tcUntil);
+  els.aAbs.classList.toggle("on", now < absUntil);
+  els.bWarn.classList.toggle("show", !!d.engine_warning);
+  document.body.classList.toggle("limiter", !!d.pit_limiter);
+
+  document.body.classList.toggle("shift", d.gear>0 && frac>0.95);
+
+  els.conn.textContent = d.connected ? "AC EVO LIVE" : "SIN SEÑAL";
+  els.conn.className = d.connected ? "ok" : "";
+}
+
+/* render continuo a 60fps con interpolación de RPM y velocidad */
+let lastLit=-1;
+function frame(){
+  requestAnimationFrame(frame);
+  if(!target) return;
+  disp.rpm   += (target.rpm - disp.rpm) * 0.35;
+  disp.speed += (target.speed_kmh - disp.speed) * 0.35;
+
+  const frac = Math.min(disp.rpm/target.max_rpm, 1);
+  /* los LEDs empiezan a encender desde 50% del régimen */
+  const lit = Math.round(Math.max(0,(frac-0.5)/0.5) * N_LEDS);
+  if(lit!==lastLit){
+    els.leds.forEach((l,i)=>l.classList.toggle("on", i<lit));
+    lastLit = lit;
+  }
+  els.rpmnum.innerHTML = `${Math.round(disp.rpm)} <small>RPM</small>`;
+  els.speed.textContent = Math.round(disp.speed);
+}
+requestAnimationFrame(frame);
+
+/* ---- Páginas: Dash <-> Tiempos (botones de control) ---- */
+let page = 0;            // 0 = dash, 1 = tiempos, 2 = dampers, 3 = estrategia, 4 = gomas
+let lastLbSig = "", lastDampers = null, lastStrat = null, lastTyres = null, sock = null, stopping = false;
+const dashview=$("dashview"), timingview=$("timingview"), damperview=$("damperview"),
+      strategyview=$("strategyview"), tyresview=$("tyresview");
+const tboard=$("tboard"), tempty=$("tempty");
+const pages = [dashview, timingview, damperview, strategyview, tyresview];
+const esc = s => String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+function showPage(n){
+  page = n;
+  pages.forEach((p,i) => p.classList.toggle("hidden", i!==n));
+  lastLbSig = "";                                  // forzar re-render al entrar
+  if(n===1 && target) renderTiming(target.leaderboard||[]);
+  if(n===2 && lastDampers) renderDampers(lastDampers);
+  if(n===3 && lastStrat) renderStrategy(lastStrat);
+  if(n===4 && lastTyres) renderTyres(lastTyres);
+  lock();
+}
+
+function renderTiming(lb){
+  if(page!==1) return;                             // solo si la página está visible
+  const sig = JSON.stringify(lb);
+  if(sig===lastLbSig) return;                      // sin cambios -> no redibujar
+  lastLbSig = sig;
+  if(!lb.length){ tboard.innerHTML=""; tempty.style.display="flex"; return; }
+  tempty.style.display="none";
+  let rows = "";
+  for(const e of lb){
+    rows += `<tr class="${e.me?"me":""}">`
+          + `<td class="tp">${e.pos}</td>`
+          + `<td class="tn">${esc(e.name)}</td>`
+          + `<td class="tl">${fmtLap(e.last)}</td>`
+          + `<td class="tb">${fmtLap(e.best)}</td></tr>`;
+  }
+  tboard.innerHTML =
+    '<table id="ttable"><thead><tr><th class="tp">POS</th><th class="tn">PILOTO</th>'
+    + '<th class="tl">ÚLTIMA</th><th class="tb">MEJOR</th></tr></thead><tbody>'
+    + rows + '</tbody></table>';
+}
+
+const DCORNER_IDS = ["dFL","dFR","dRL","dRR"];
+function renderDampers(dp){
+  if(page!==2) return;
+  const lapsTxt = dp.showingCurrent
+    ? "vuelta en curso"
+    : `${dp.validLaps} vuelta${dp.validLaps===1?"":"s"} válida${dp.validLaps===1?"":"s"}`;
+  $("dinfo").textContent = `${lapsTxt} · ${dp.rateHz?("~"+dp.rateHz+"Hz"):"—"}`;
+  const centers = dp.centers, lh = dp.lowHigh;
+  dp.corners.forEach((c, ci) => {
+    const cell = $(DCORNER_IDS[ci]);
+    const meta = cell.querySelector(".dcmeta");
+    const bars = cell.querySelector(".dbars");
+    if(!c.samples){ meta.textContent = "sin datos"; bars.innerHTML = ""; return; }
+    meta.textContent = `low ${c.pctLow}% · alta ${c.pctHigh}% · b/r ${c.pctBump}/${c.pctRebound} · med ${c.medAbs}mm/s`;
+    const mx = Math.max.apply(null, c.hist) || 1;
+    let h = "";
+    for(let i=0;i<c.hist.length;i++){
+      const cc = centers[i];
+      const side = cc < 0 ? "reb" : "bump";
+      const spd = Math.abs(cc) <= lh ? "lo" : "hi";
+      h += `<i class="${side} ${spd}" style="height:${(c.hist[i]/mx*100).toFixed(1)}%"></i>`;
+    }
+    bars.innerHTML = h;
+  });
+  let recsHtml = dp.recommendations.map(r => `<div class="drec">${esc(r)}</div>`).join("");
+  if(dp.springRecs && dp.springRecs.length){
+    recsHtml += `<div class="drecdiv">RESORTES · TRAVEL</div>`
+             + dp.springRecs.map(r => `<div class="drec spring">${esc(r)}</div>`).join("");
+  }
+  $("drecs").innerHTML = recsHtml;
+}
+
+/* ---- GOMAS + BALANCE (presion/temp de nucleo/camber por esquina + sobre/subviraje) ---- */
+const YC_IDS = ["yFL","yFR","yRL","yRR"];
+function renderTyres(t){
+  lastTyres = t;
+  if(page!==4 || !t) return;
+  (t.corners||[]).forEach((c,i)=>{
+    const el = $(YC_IDS[i]); if(!el) return;
+    el.querySelector(".yp").innerHTML = (c.press!=null?c.press.toFixed(2):"--")+"<small>bar</small>";
+    const temp = c.temp!=null ? c.temp+"°C" : "--";
+    const cam  = c.camber!=null ? (c.camber>0?"+":"")+c.camber.toFixed(1)+"°" : "--";
+    const tcls = c.temp!=null ? (c.temp>=100?"hot":c.temp<60?"cold":"") : "";
+    el.querySelector(".ysub").innerHTML = `<span class="${tcls}">${temp}</span> · camber ${cam}`;
+  });
+  const b = t.balance || {};
+  $("yinfo").textContent = b.samples ? `${b.samples} muestras en curva` : "sin curvas aún";
+  const vd = $("ybalverdict"), mark = $("ybalmark");
+  if(b.samples && b.verdict){
+    /* posicion por la DISTRIBUCION (coincide con el veredicto): +sobrevira (der), -subvira (izq) */
+    const skew = (b.oversteer_pct||0) - (b.understeer_pct||0);   // -100..100
+    mark.style.left = Math.max(2, Math.min(98, 50 + skew*0.5))+"%";
+    vd.textContent = b.verdict==="sobrevirador" ? `SOBREVIRADOR · ${b.oversteer_pct}% de las curvas`
+                   : b.verdict==="subvirador"  ? `SUBVIRADOR · ${b.understeer_pct}% de las curvas`
+                   : `NEUTRO · ${b.neutral_pct}% neutro`;
+    vd.className = b.verdict==="sobrevirador" ? "o" : b.verdict==="subvirador" ? "u" : "n";
+  } else {
+    vd.textContent = "maneja en curva para medir el balance"; vd.className = "";
+    mark.style.left = "50%";
+  }
+}
+
+/* ---- ESTRATEGIA: director de carrera (combustible / gomas / paradas) ---- */
+const SW_IDS = ["swFL","swFR","swRL","swRR"];
+function renderStrategy(s){
+  lastStrat = s;
+  handleStrategyTTS(s);            // la voz suena en cualquier página
+  if(page!==3 || !s) return;
+  const sess = s.session || "";
+
+  if(!s.live || s.calibrating){
+    $("scalib").classList.remove("hidden");
+    $("sbody").classList.add("hidden");
+    $("sinfo").textContent = sess;
+    $("scalib").textContent = !s.live
+      ? "Sin sesión — entra a pista para ver la estrategia"
+      : `Calibrando… (${s.green_laps||0}/2 vueltas) — el plan aparece solo`;
+    return;
+  }
+  $("scalib").classList.add("hidden");
+  $("sbody").classList.remove("hidden");
+
+  if(s.planning){ renderPlan(s); return; }       // práctica/quali con formato manual
+  if(s.no_race){ renderNoRace(s); return; }       // práctica sin formato cargado
+
+  /* ----- carrera EN VIVO ----- */
+  renderCrossover(s);             // semáforo lluvia→lisos (solo carrera con goma de agua)
+  $("sinfo").textContent = sess + (s.mode==="timed" ? " · tiempo" : s.mode==="laps" ? " · vueltas" : "");
+  $("sfuellabel").textContent = "Combustible al final";
+  $("sfuelunit").textContent = " L";
+
+  /* combustible al final + semáforo */
+  $("sfuel").className = "st-"+(s.fuel_status||"green");
+  const fe = s.fuel_at_end_l;
+  $("sfuelnum").textContent = (fe>0?"+":"") + fe;
+  $("sfuelmargin").textContent = `margen ${s.margin_laps} v · quedan ~${s.laps_remaining} v`;
+
+  /* fuel-to-save (solo en déficit) */
+  const sv = $("ssave");
+  if(s.save_per_lap){
+    sv.classList.remove("hidden");
+    sv.className = s.save_level==="impossible" ? "imposs" : "";
+    $("ssaveval").textContent = s.save_per_lap.toFixed(2);
+    $("ssavehint").textContent = s.save_level==="easy" ? "ahorro suave, llegas"
+      : s.save_level==="hard" ? "lift & coast en las frenadas duras"
+      : "no alcanza — planifica parar";
+  } else sv.classList.add("hidden");
+
+  /* 4 ruedas: desgaste + temperatura, peor resaltada */
+  renderWheels(s);
+
+  /* limitante del stint */
+  const lim = $("slimiter");
+  if(s.limiter==="tyre"){
+    lim.className = "lim-tyre";
+    lim.textContent = `PARAS POR: gomas (${s.limiter_laps} v)`;
+  } else {
+    lim.className = "lim-fuel";
+    lim.textContent = `PARAS POR: combustible (${s.limiter_laps} v)`;
+  }
+
+  /* ventana de pit + barra de stint */
+  if(s.pit_to){
+    const from = Math.max(0, s.pit_from - s.cur_lap);
+    const to   = Math.max(0, s.pit_to   - s.cur_lap);
+    $("spitwin").textContent = from===to ? `PIT en ${to} v` : `PIT en ${from}-${to} v`;
+    $("sstops").textContent = `${s.stops_min} parada${s.stops_min===1?"":"s"}`;
+    const span = Math.max(to + 1, s.limiter_laps || 0) + 1;
+    const pct = x => Math.max(0, Math.min(100, x/span*100));
+    const w = $("sbarwin");
+    w.style.left = pct(from)+"%";
+    w.style.width = Math.max(2, pct(to)-pct(from))+"%";
+    $("sbarlimit").style.left = pct(s.limiter_laps)+"%";
+    const be = $("sbarenf"), enf = s.enforced_lap!=null ? s.enforced_lap - s.cur_lap : null;
+    if(enf!=null && enf>=0){ be.style.left = pct(enf)+"%"; be.classList.remove("hidden"); }
+    else be.classList.add("hidden");
+    $("sbarwrap").style.display = "";
+  } else {
+    $("spitwin").textContent = "Sin parada necesaria";
+    $("sstops").textContent = `${s.stops_min} parada${s.stops_min===1?"":"s"}`;
+    $("sbarwrap").style.display = "none";
+  }
+
+  /* litros a cargar en boxes */
+  const sa = $("sadd");
+  if(s.add_l!=null && s.pit_to){
+    sa.classList.remove("hidden");
+    $("saddval").textContent = s.add_l;
+    $("saddwarn").textContent = s.need_two ? "⚠ no entra en 1 carga (2 paradas)" : "";
+  } else sa.classList.add("hidden");
+}
+
+function renderWheels(s){
+  (s.tyres||[]).forEach((t,i)=>{
+    const el = $(SW_IDS[i]); if(!el) return;
+    el.className = "swheel w-"+t.st + (i===s.worst?" worst":"")
+                 + (t.tstat==="hot"?" hot":t.tstat==="cold"?" cold":"");
+    el.querySelector(".sw").textContent = t.w+"%";
+    el.querySelector(".stmp").textContent = t.t+"°";
+  });
+}
+
+/* semáforo de cruce lluvia→lisos. Aparece solo en carrera con goma de agua;
+   AMS2 no expone wetness, así que el backend lo infiere de proxies y acá pintamos
+   estado + las señales crudas (no un semáforo opaco). */
+function renderCrossover(s){
+  const el = $("scross"), cx = s.crossover;
+  if(!cx){ el.classList.add("hidden"); return; }
+  el.classList.remove("hidden");
+  const cond = `lluvia ${cx.rain} · pista ${cx.track_t}° · wets ${cx.wet_temp}°`;
+  const sig = (cx.signals && cx.signals.length) ? cx.signals.join(" · ") : cond;
+  if(cx.state==="calibrando"){
+    el.className = "cx-calib";
+    $("scrosstitle").textContent = "CRUCE LLUVIA→LISOS · calibrando…";
+    $("scrosssig").textContent = cond;
+  } else if(cx.state==="amber"){
+    el.className = "cx-amber";
+    $("scrosstitle").textContent = "🟡 VENTANA DE LISOS ABIERTA — prepara boxes";
+    $("scrosssig").textContent = sig;
+  } else if(cx.state==="red"){
+    el.className = "cx-red";
+    $("scrosstitle").textContent = "🔴 VAS TARDE — LISOS YA VAN MÁS RÁPIDO · BOX";
+    $("scrosssig").textContent = sig;
+  } else {
+    el.className = "cx-green";
+    $("scrosstitle").textContent = "🟢 AGUANTA LLUVIA — es la goma correcta";
+    $("scrosssig").textContent = cond;
+  }
+}
+
+/* plan ESTIMADO de carrera (práctica/quali con formato cargado a mano) */
+function renderPlan(s){
+  $("scross").classList.add("hidden");
+  $("sinfo").textContent = (s.session||"") + " · plan";
+  $("sfuel").className = "st-plan";
+  $("sfuellabel").textContent = "Combustible carrera";
+  $("sfuelnum").textContent = s.race_fuel_total_l;
+  $("sfuelunit").textContent = " L";
+  $("sfuelmargin").textContent = `${s.race_total_laps} vueltas · ${s.fuel_per_lap} L/v`;
+  $("ssave").classList.add("hidden");
+  const lim = $("slimiter");
+  lim.className = "lim-plan";
+  lim.textContent = `LARGA CON ${s.race_start_fuel_l} L · ${s.race_stops} parada${s.race_stops===1?"":"s"} · stint ~${s.stint_full_laps} v`;
+  renderWheels(s);
+  $("spitwin").textContent = "Plan estimado (práctica)";
+  $("sstops").textContent = "";
+  $("sbarwrap").style.display = "none";
+  $("sadd").classList.add("hidden");
+}
+
+/* práctica sin formato: consumo medido + invitación a configurar la carrera */
+function renderNoRace(s){
+  $("scross").classList.add("hidden");
+  $("sinfo").textContent = (s.session||"") + " · ⚙ carrera";
+  $("sfuel").className = "st-plan";
+  $("sfuellabel").textContent = "Consumo medido";
+  $("sfuelnum").textContent = s.fuel_per_lap;
+  $("sfuelunit").textContent = " L/v";
+  $("sfuelmargin").textContent = `vuelta ~${s.avg_lap_s}s · toca ⚙ para el plan de carrera`;
+  $("ssave").classList.add("hidden");
+  $("slimiter").className = "lim-plan";
+  $("slimiter").textContent = "Sin formato de carrera configurado";
+  renderWheels(s);
+  $("spitwin").textContent = "—";
+  $("sstops").textContent = "";
+  $("sbarwrap").style.display = "none";
+  $("sadd").classList.add("hidden");
+}
+
+/* ---- voz del ingeniero (Web Speech API): edge-trigger, sin spam ---- */
+let ttsOn = true;
+const announced = new Set();       // alertas ya dichas mientras siguen activas
+
+/* iOS bloquea speechSynthesis hasta hablar dentro de un gesto de usuario;
+   una utterance muda en el primer tap lo desbloquea para las alertas posteriores. */
+let ttsPrimed = false;
+function primeTTS(){
+  if(ttsPrimed || !("speechSynthesis" in window)) return;
+  try{ const u = new SpeechSynthesisUtterance(" "); u.volume = 0; u.lang = "es-ES";
+       speechSynthesis.speak(u); ttsPrimed = true; }catch(e){}
+}
+function speak(text){
+  if(!ttsOn || !("speechSynthesis" in window)) return;
+  try{
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "es-ES"; u.rate = 1.05; u.volume = 1;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }catch(e){}
+}
+function handleStrategyTTS(s){
+  const alerts = (s && s.alerts) || [];
+  const active = new Set(alerts.map(a => a.key));
+  // re-arme: una alerta que dejó de estar activa podrá volver a sonar si reaparece
+  for(const k of [...announced]) if(!active.has(k)) announced.delete(k);
+  if(!ttsOn) return;
+  // hablar SOLO alertas nuevas (no las que ya están sonando), la más urgente primero
+  const fresh = alerts.filter(a => !announced.has(a.key)).sort((x, y) => y.level - x.level);
+  if(fresh.length){ announced.add(fresh[0].key); speak(fresh[0].say); }
+}
+
+/* watchdog: tras suspender/reanudar el WS puede quedar half-open (onclose nunca
+   dispara) y el dash se congela con datos viejos. Marcamos cada mensaje y si el
+   backend (que empuja ~10-20Hz continuo) calla >3s, forzamos reconexión. */
+let lastMsgAt = 0;
+function forceReconnect(){
+  if(stopping) return;                              // servidor detenido: no reconectar
+  try{ if(sock){ sock.onclose = null; sock.close(); } }catch(e){}
+  sock = null;
+  els.conn.textContent = "RECONECTANDO…"; els.conn.className = "warn";
+  connect();
+}
+function connect(){
+  const ws = new WebSocket(`ws://${location.hostname}:8765`);
+  sock = ws;
+  lastMsgAt = performance.now();
+  ws.onopen = () => {                              // re-aplica ajustes guardados
+    const p = loadPlan(); if(p) sendPlan(p);
+    sendAllLaps(loadAllLaps());
+    sendTelemMode(loadTelemMode());
+  };
+  ws.onmessage = e => {
+    lastMsgAt = performance.now();
+    const m = JSON.parse(e.data);
+    if(m.dampers){ lastDampers = m.dampers; renderDampers(m.dampers); return; }
+    target = m; applyStatic(m); renderTiming(m.leaderboard||[]);
+    if(m.strategy) renderStrategy(m.strategy);
+    if(m.tyres){ lastTyres = m.tyres; renderTyres(m.tyres); }
+    if(m.telemetry) updateRec(m.telemetry);
+  };
+  ws.onclose = () => {
+    if(sock !== ws) return;                         // ya reconectó el watchdog: onclose del socket viejo
+    if(stopping){ $("stopped").classList.remove("hidden"); return; }
+    els.conn.textContent="RECONECTANDO…"; els.conn.className="warn";
+    setTimeout(connect, 1500);
+  };
+}
+connect();
+/* si el socket sigue "abierto" pero no llegan datos hace >3s, está congelado */
+setInterval(() => {
+  if(stopping) return;
+  if(sock && sock.readyState === 1 && performance.now() - lastMsgAt > 3000){
+    els.conn.textContent = "SIN DATOS"; els.conn.className = "warn";
+    forceReconnect();
+  }
+}, 2000);
+
+/* ---- Wake Lock endurecido: mantiene la pantalla encendida ---- */
+/* el sentinel se suelta solo (screen-off, cambio de app, bfcache); reaccionamos
+   al evento 'release', reintentamos si seguimos visibles y mostramos aviso si falla. */
+let wl = null, lockActive = false;
+function updateLockUI(ok){
+  const v = $("nosleep");                           // el video fallback también protege la pantalla
+  $("nolock").classList.toggle("show", !(ok || (v && !v.paused)));
+}
+async function lock(){
+  if(!("wakeLock" in navigator)){ updateLockUI(false); return; }
+  if(wl) return;                                    // ya hay sentinel válido (idempotente)
+  try{
+    wl = await navigator.wakeLock.request("screen");
+    lockActive = true; updateLockUI(true);
+    if(lockActive){ try{ $("nosleep").pause(); }catch(e){} }   // wake lock real → apaga el fallback de video
+    wl.addEventListener("release", () => {
+      wl = null; lockActive = false; updateLockUI(false);
+      if(document.visibilityState === "visible") lock();
+    });
+  }catch(e){ wl = null; lockActive = false; updateLockUI(false); }
+}
+lock();
+
+/* fallback para iPads sin Wake Lock funcional o con el request rechazado:
+   un video oculto en loop impide el auto-sleep. Se auto-anula si el lock real está activo. */
+function startNoSleep(){
+  if(lockActive) return;
+  const v = $("nosleep");
+  v.play().then(() => updateLockUI(false)).catch(()=>{});  // si el video corre, el badge se oculta
+}
+
+/* al volver a ser visible (o tras bfcache) el sentinel viejo es inválido:
+   lo descartamos y re-lockeamos; si el WS quedó congelado, reconectamos. */
+function onResume(){
+  if(stopping) return;                              // servidor detenido: no re-lockear ni reconectar
+  wl = null; lock();
+  if(sock && sock.readyState === 1){
+    if(performance.now() - lastMsgAt > 3000) forceReconnect();
+  }
+  // si sock es null o CLOSING/CLOSED, el retry de onclose (setTimeout 1.5s) ya actúa — no duplicar sockets
+}
+document.addEventListener("visibilitychange",
+  () => { if(document.visibilityState==="visible") onResume(); });
+window.addEventListener("pageshow", onResume);
+
+/* ---- Fullscreen: un tap entra y reasegura el wake lock ---- */
+const root = document.documentElement, hint = $("fshint");
+function goFullscreen(){
+  const req = root.requestFullscreen || root.webkitRequestFullscreen;
+  if(req) req.call(root).catch(()=>{});   // iPhone no soporta la API: usa "Agregar a inicio"
+  lock().then(() => startNoSleep());       // fallback de video solo si el lock real no quedó activo
+  primeTTS();                              // desbloquea la voz del ingeniero dentro del gesto (iOS)
+  hint.classList.add("hide");
+}
+hint.addEventListener("click", goFullscreen);
+$("btnfs").addEventListener("click", goFullscreen);
+$("btnfs2").addEventListener("click", goFullscreen);
+$("btntimes").addEventListener("click", () => showPage(1));
+$("btnback").addEventListener("click", () => showPage(0));
+$("btndamp").addEventListener("click", () => showPage(2));
+$("btnbackd").addEventListener("click", () => showPage(0));
+$("btnfs3").addEventListener("click", goFullscreen);
+$("btntyres").addEventListener("click", () => showPage(4));
+$("btnbacky").addEventListener("click", () => showPage(0));
+$("btnfs5").addEventListener("click", goFullscreen);
+$("btnrsettyres").addEventListener("click", () => { try{ sock && sock.send(JSON.stringify({cmd:"reset_tyres"})); }catch(e){} });
+$("btnbacks").addEventListener("click", () => showPage(0));
+$("btnfs4").addEventListener("click", goFullscreen);
+$("btntts").addEventListener("click", () => {
+  ttsOn = !ttsOn;
+  $("btntts").textContent = ttsOn ? "🔊" : "🔇";
+  if(!ttsOn && "speechSynthesis" in window) speechSynthesis.cancel();
+});
+
+/* ---- formato de carrera manual (plan en práctica) + persistencia ---- */
+let rcfgMode = "timed";
+const loadPlan = () => { try{ return JSON.parse(localStorage.getItem("ams2_raceplan")||"null"); }catch(e){ return null; } };
+const sendPlan = p => { try{ if(sock && sock.readyState===1) sock.send(JSON.stringify({cmd:"set_race",mode:p.mode,value:p.value,additional:p.additional})); }catch(e){} };
+const loadAllLaps = () => { try{ const v = localStorage.getItem("ams2_alllaps"); return v===null ? true : v==="1"; }catch(e){ return true; } };
+const sendAllLaps = on => { try{ if(sock && sock.readyState===1) sock.send(JSON.stringify({cmd:"set_alllaps",on:!!on})); }catch(e){} };
+const TEL_MODES = ["off", "summary", "full"];
+const loadTelemMode = () => { try{ const v = localStorage.getItem("ams2_telemode"); return TEL_MODES.includes(v) ? v : "full"; }catch(e){ return "full"; } };
+const sendTelemMode = m => { try{ if(sock && sock.readyState===1) sock.send(JSON.stringify({cmd:"set_telemetry",mode:m})); }catch(e){} };
+function setTelTab(m){ for(const x of TEL_MODES) $("rctel_"+x).classList.toggle("on", x===m); }
+function updateRec(t){
+  const el = $("srec"); if(!el) return;
+  if(t && t.mode && t.mode!=="off"){
+    el.className = t.recording ? "on" : "";
+    el.textContent = (t.recording ? "● REC" : "○ REC") + (t.mode==="summary" ? " resumen" : "")
+                   + (t.laps_logged ? " · " + t.laps_logged + "v" : "");
+  } else { el.className = ""; el.textContent = ""; }
+}
+function setRcfgMode(m){
+  rcfgMode = m;
+  $("rcfgtimed").classList.toggle("on", m==="timed");
+  $("rcfglaps").classList.toggle("on", m==="laps");
+  $("rcfgunit").textContent = m==="timed" ? "min" : "vueltas";
+}
+$("btnracecfg").addEventListener("click", () => {
+  const saved = loadPlan();
+  if(saved){ $("rcfgval").value = saved.value; $("rcfgadd").checked = !!saved.additional; setRcfgMode(saved.mode); }
+  else setRcfgMode(rcfgMode);
+  $("rcfgalllaps").checked = loadAllLaps();
+  setTelTab(loadTelemMode());
+  $("racecfg").classList.remove("hidden");
+});
+$("rcfgalllaps").addEventListener("change", () => {
+  const on = $("rcfgalllaps").checked;
+  try{ localStorage.setItem("ams2_alllaps", on ? "1" : "0"); }catch(e){}
+  sendAllLaps(on);                                 // aplica al instante (no espera Guardar)
+});
+for(const m of TEL_MODES){
+  $("rctel_"+m).addEventListener("click", () => {
+    try{ localStorage.setItem("ams2_telemode", m); }catch(e){}
+    setTelTab(m); sendTelemMode(m);
+  });
+}
+$("rcfgtimed").addEventListener("click", () => setRcfgMode("timed"));
+$("rcfglaps").addEventListener("click", () => setRcfgMode("laps"));
+$("rcfgsave").addEventListener("click", () => {
+  const val = parseInt($("rcfgval").value, 10);
+  if(!val || val < 1) return;
+  const p = {mode:rcfgMode, value:val, additional:$("rcfgadd").checked?1:0};
+  try{ localStorage.setItem("ams2_raceplan", JSON.stringify(p)); }catch(e){}
+  sendPlan(p);
+  $("racecfg").classList.add("hidden");
+});
+$("rcfgclear").addEventListener("click", () => {
+  try{ localStorage.removeItem("ams2_raceplan"); }catch(e){}
+  try{ if(sock && sock.readyState===1) sock.send(JSON.stringify({cmd:"clear_race"})); }catch(e){}
+  $("racecfg").classList.add("hidden");
+});
+$("btnreset").addEventListener("click", () => { try{ sock && sock.send(JSON.stringify({cmd:"reset_dampers"})); }catch(e){} });
+$("btnstop").addEventListener("click", () => $("stopconfirm").classList.remove("hidden"));
+$("stopcancel").addEventListener("click", () => $("stopconfirm").classList.add("hidden"));
+$("stopok").addEventListener("click", () => {
+  stopping = true;
+  try{ sock && sock.send(JSON.stringify({cmd:"stop_server"})); }catch(e){}
+  $("stopconfirm").classList.add("hidden");
+  $("stopped").classList.remove("hidden");
+});
+/* si el SO devuelve el foco al dash (p.ej. tras un screen-off), reasegura el lock */
+document.addEventListener("fullscreenchange",
+  () => (document.fullscreenElement) && lock());
+
+/* reintento global por tap: si el lock se soltó, cualquier toque lo re-adquiere
+   (o arranca el fallback) y desbloquea la voz. Anti-pinch para no hacer zoom. */
+document.addEventListener("pointerdown", () => { if(!lockActive){ lock(); startNoSleep(); } primeTTS(); }, {passive:true});
+document.addEventListener("gesturestart", e => e.preventDefault());
+document.addEventListener("touchmove", e => { if(e.touches.length > 1) e.preventDefault(); }, {passive:false});
+</script>
+</body>
+</html>
